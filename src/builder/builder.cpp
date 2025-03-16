@@ -1,0 +1,158 @@
+#include <iostream>
+#include <sstream> // Include for stringstream
+#include <fstream>
+#include <filesystem>
+#include <vector>
+#include <optional>
+#include <string>
+
+#include "../utils/utils.hpp"
+#include "builder.hpp"
+
+Builder::Builder(Feeder& feeder) :
+    feeder(feeder) {}
+
+Builder::~Builder() { }
+
+void Builder::worker_thread(std::vector<Page>& processed_pages) {
+    Config& config = feeder.getConfig();
+
+    std::stringstream thread_html_stream;
+    std::optional<std::pair<std::int32_t, std::filesystem::path>> page_path_opt = feeder.getNext();
+
+    while (page_path_opt.has_value()) {
+        std::pair<std::int32_t, std::filesystem::path> page_entry = page_path_opt.value();
+        std::int32_t index = page_entry.first;
+        std::filesystem::path page_path = page_entry.second;
+
+    #if DEBUG
+        LOG_DEBUG("Processing content (index: " << index << "): " << page_path);
+    #endif
+
+        try {
+            std::ifstream markdown_file(page_path);
+
+            if (!markdown_file.is_open()) {
+                throw std::runtime_error("Failed to open markdown file: " + page_path.string());
+            }
+
+            std::stringstream file_content_stream;
+            std::string line;
+            while (std::getline(markdown_file, line)) {
+                file_content_stream << line << '\n';
+            }
+            std::string file_content = file_content_stream.str();
+
+            // extract markdown and frontmatter
+            auto extracted = utils::extract(file_content, utils::MARKDOWN | utils::FRONTMATTER);
+
+            if (!extracted.first.has_value() || !extracted.second.has_value())
+            {
+                throw std::runtime_error("Failed to extract markdown and frontmatter from file: " + page_path.string());
+            }
+
+            std::string_view markdown    = extracted.first.value();
+            std::string_view frontmatter = extracted.second.value();
+
+            Data page_data((std::string(frontmatter)));
+
+            // convert markdown to html
+            md_html(markdown.data(), markdown.length(), utils::handle_md, &thread_html_stream, 0, 0);
+
+            // fetch html from stream and save the output
+            std::string html = thread_html_stream.str();
+            page_data.set<std::string>(html, "content");
+
+            // compute and save the path
+            std::string output_path = utils::getOutputPath(
+                config.getSiteDirectory() / "content",
+                config.getSiteDirectory() / "output",
+                page_path
+            ).string();
+            page_data.set<std::string>(output_path, "path");
+
+            // compute and save the url
+            std::string output_url = utils::getOutputUrl(
+                config.getSiteDirectory() / "content",
+                config.get<std::string>(DataType::SITE, "site", "url"),
+                page_path
+            );
+            page_data.set<std::string>(output_url, "url");
+            
+            // save page
+            Page page(page_data);
+            processed_pages.push_back(page);
+
+        #if DEBUG
+            LOG_DEBUG("Finished processing content (index: " << index << ")");
+        #endif
+        } catch (const std::exception& e) {
+            std::cerr << "Error processing content: " << page_path << std::endl;
+            std::cerr << "Error message: " << e.what() << std::endl;
+        }
+
+        thread_html_stream.str("");
+        thread_html_stream.clear(); 
+        page_path_opt = feeder.getNext();
+    }
+}
+
+void Builder::build() {
+    unsigned int num_threads = 1; //std::thread::hardware_concurrency();
+    std::cout << "Building with: " << num_threads << " threads." << std::endl;
+    std::vector<std::thread> threads;
+    std::vector<Page> processed_pages;
+
+    for (int i = 0; i < num_threads; ++i) {
+        threads.emplace_back([this, &processed_pages] { worker_thread(processed_pages); });
+    }
+
+    for (auto& thread : threads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
+
+    Config& config = feeder.getConfig();
+
+    std::filesystem::path output_dir = config.getSiteDirectory() / "output";
+    utils::clear_directory(output_dir);
+
+    for (auto& page : processed_pages) {
+        page.validate(config);
+        config.add(DataType::SITE, page.getPageData(), "pages");
+    }
+
+    nlohmann::json pages = config.getData(DataType::SITE).getJson()["pages"];
+
+    // at this point it's guaranteed that each page has a timestamp
+    std::sort(
+        pages.begin(),
+        pages.end(),
+        [] (const nlohmann::json& a, const nlohmann::json& b) {
+            time_t ts_a = a["timestamp"];
+            time_t ts_b = b["timestamp"];
+
+            return ts_a > ts_b;
+        }
+    );
+
+    config.set<nlohmann::json>(DataType::SITE, pages, "pages");
+
+    for (auto& page : processed_pages) {
+        page.render(config);
+    }
+    
+    // TODO move to config.cpp
+    std::filesystem::path theme_dir         = config.getThemeDirectory();
+    std::filesystem::path assets_dir        = theme_dir / config.get<std::string>(DataType::THEME, "assets-directory");
+    std::filesystem::path relative_path     = std::filesystem::relative(assets_dir, theme_dir);
+    std::filesystem::path build_dir         = config.getSiteDirectory() / "output";
+    std::filesystem::path target_assets_dir = build_dir / relative_path;
+
+    std::filesystem::copy(
+        assets_dir,
+        target_assets_dir,
+        std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing
+    );
+}
