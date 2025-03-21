@@ -1,32 +1,28 @@
 #include "config.hpp"
 #include "../utils/utils.hpp"
+#include "../utils/logger.hpp"
 
 // factory for site and theme configuration data objects
 Data Config::createData(DataType type, const std::filesystem::path& path) {
     try {
-        std::ifstream config_file(path);
-        if (!config_file.is_open()) {
-            std::stringstream ss;
-            if (type == DataType::SITE) {
-                ss << "Failed to open site configuration file: " << path << std::endl;
-            } else {
-                ss << "Failed to open theme configuration file: " << path << std::endl;
-            }
-            throw std::runtime_error(ss.str());
+        if (!std::filesystem::exists(path)) {
+            throw std::runtime_error("Configuration file not found: " + path.string());
         }
 
-        if (type == DataType::SITE) {
-            return Data("site", config_file);
-        } else {
-            return Data(config_file);
+        std::ifstream config_file(path);
+        if (!config_file) {
+            throw std::runtime_error("Failed to open configuration file: " + path.string());
         }
+
+        // site and page data is combined before rendering, it's prefixed with `site` to avoid collisions
+        return (type == DataType::SITE) ? Data("site", config_file) : Data(config_file);
+
     } catch (const std::exception& e) {
-        std::stringstream ss;
-        if (type == DataType::SITE) {
-            ss << "Error creating Site config from configuration file " << path << ": " << e.what() << std::endl;
-        } else {
-            ss << "Error creating Theme config from configuration file " << path << ": " << e.what() << std::endl;
-        }
+        std::ostringstream ss;
+        ss << "Error reading " 
+           << ((type == DataType::SITE) ? "site" : "theme")  << " "
+           << "configuration file"
+           << ": " << e.what();
         throw std::runtime_error(ss.str());
     }
 }
@@ -47,7 +43,14 @@ Config::Config(const std::filesystem::path& path) :
     theme_dir   (getThemeFromSiteData()),
     theme_data  (createData(DataType::THEME, theme_dir / "config.json"))
 {
-    validate();
+    try {
+        validate_theme_config();
+        validate_site_config();
+    } catch (const std::exception& e) {
+        std::stringstream ss;
+        ss << "Error validating config.json: " << e.what() << std::endl;
+        throw std::runtime_error(ss.str());
+    }
 }
 
 const inja::Template& Config::getTemplate(const std::string& template_name) {
@@ -77,7 +80,34 @@ const inja::Template& Config::getTemplate(const std::string& template_name) {
     return template_map[template_name];
 }
 
-void Config::validate() 
-{
-    // TODO: validate the site and theme configuration data    
+void Config::validate_theme_config() {
+    // there might be reasons to build without templates?
+    if (!theme_data.hasKey("templates")) {
+        LOG_WARN("No templates found in theme config.json");
+    }
+    
+    if (!theme_data.hasKey("default")) {
+        LOG_WARN("No default template specified in theme config.json");
+    }
+
+    if (!theme_data.hasKey("assets-directory")) {
+        LOG_WARN("No assets directory found in theme config.json");
+    }
+}
+
+void Config::validate_site_config() {
+    if (!site_data.hasKey("site", "url")) {
+        throw std::runtime_error("No url found in site config.json");
+    }
+
+    if (!site_data.hasKey("site", "title")) {
+        LOG_WARN("No title found in site config.json. Defaulting to: " << DEFAULT_SITE_TITLE);
+        site_data.set<std::string>(DEFAULT_SITE_TITLE, "site", "title");
+    }
+
+    // a better idea would be to just pick one of the available themes and warn
+    // but we will enforce this for now
+    if (!site_data.hasKey("site", "theme")) {
+        throw std::runtime_error("No theme specified in site config.json");
+    }
 }

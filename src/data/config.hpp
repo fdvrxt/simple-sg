@@ -28,7 +28,8 @@ private:
 
 public:
     Config(const std::filesystem::path& config_path);
-    void validate();
+    void validate_theme_config();
+    void validate_site_config();
 
     inja::Environment&              getEnvironment() { return env; }
     const inja::Template&           getTemplate(const std::string& template_name);
@@ -36,6 +37,8 @@ public:
     const std::filesystem::path&    getSiteDirectory() const { return site_dir; }
     const std::filesystem::path&    getThemeDirectory() const { return theme_dir; }
 
+    // default config values
+    static constexpr const char* DEFAULT_SITE_TITLE = "Site";
 
     // forwarding method for calling Data functions dynamically
     template <typename Func, typename... Args>

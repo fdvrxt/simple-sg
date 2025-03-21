@@ -71,10 +71,7 @@ bool utils::output_file(const std::string& str, std::filesystem::path& file_path
         return false;
     }
     output_file_stream.close();
-
-#ifdef DEBUG
-    LOG_DEBUG("Outputting file " << file_path);
-#endif
+    
     return true;
 }
 

@@ -1,5 +1,5 @@
 #include <iostream>
-#include <sstream> // Include for stringstream
+#include <sstream>
 #include <fstream>
 #include <filesystem>
 #include <vector>
@@ -25,9 +25,7 @@ void Builder::worker_thread(std::vector<Page>& processed_pages) {
         std::int32_t index = page_entry.first;
         std::filesystem::path page_path = page_entry.second;
 
-    #if DEBUG
-        LOG_DEBUG("Processing content (index: " << index << "): " << page_path);
-    #endif
+        LOG_INFO("Processing content (index: " << index << "): " << page_path);
 
         try {
             std::ifstream markdown_file(page_path);
@@ -83,12 +81,11 @@ void Builder::worker_thread(std::vector<Page>& processed_pages) {
             Page page(page_data);
             processed_pages.push_back(page);
 
-        #if DEBUG
-            LOG_DEBUG("Finished processing content (index: " << index << ")");
-        #endif
+            LOG_INFO("Finished processing content (index: " << index << ")");
+
         } catch (const std::exception& e) {
-            std::cerr << "Error processing content: " << page_path << std::endl;
-            std::cerr << "Error message: " << e.what() << std::endl;
+            LOG_ERROR("Error processing content: "  << page_path);
+            LOG_ERROR("Error message: "             << e.what());
         }
 
         thread_html_stream.str("");
@@ -99,7 +96,8 @@ void Builder::worker_thread(std::vector<Page>& processed_pages) {
 
 void Builder::build() {
     unsigned int num_threads = 1; //std::thread::hardware_concurrency();
-    std::cout << "Building with: " << num_threads << " threads." << std::endl;
+    LOG_INFO("Building with: " << num_threads << " threads");
+
     std::vector<std::thread> threads;
     std::vector<Page> processed_pages;
 

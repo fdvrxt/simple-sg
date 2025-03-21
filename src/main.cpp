@@ -9,6 +9,7 @@
 #include "data/config.hpp"
 #include "data/data.hpp"
 #include "utils/utils.hpp"
+#include "utils/logger.hpp"
 #include "utils/debug.hpp"
 #include "builder/builder.hpp"
 
@@ -40,11 +41,11 @@ int main(int argc, char* argv[]) {
         Builder builder(feeder);
 
         builder.build();
+        LOG_INFO("Building succeeded");
     } catch (const std::exception& e) {
-        std::cerr << "Building failed: " << e.what() << std::endl;
+        LOG_ERROR("Building failed: " << e.what());
         return_value = 1;   
     }
-
-    getchar();
+    
     return return_value;
 }

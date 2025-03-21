@@ -19,10 +19,7 @@ void Feeder::fetchPosts() {
     try {
         for (const auto& entry : std::filesystem::recursive_directory_iterator(content_dir)) {
             if (std::filesystem::is_regular_file(entry.status())) {
-            #if DEBUG
-                LOG_DEBUG("Queueing content: " << entry.path());
-            #endif
-
+                LOG_INFO("Queueing content: " << entry.path());
                 page_queue.push(entry.path());
             }
         }
