@@ -16,19 +16,13 @@ void Feeder::fetchPosts() {
         throw std::runtime_error(ss.str());
     }
 
-    try {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(content_dir)) {
-            if (std::filesystem::is_regular_file(entry.status())) {
-                LOG_INFO("Queueing content: " << entry.path());
-                page_queue.push(entry.path());
-            }
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(content_dir)) {
+        if (std::filesystem::is_regular_file(entry.status())) {
+            LOG_INFO("Queueing content: " << entry.path());
+            page_queue.push(entry.path());
         }
-        if (std::filesystem::is_empty(content_dir)) { } // TODO
-    } catch (const std::exception& e){
-        std::stringstream ss;
-        ss << "An unexpected error has ocurred: " << e.what();
-        throw std::runtime_error(ss.str());
     }
+    if (std::filesystem::is_empty(content_dir)) { } // TODO
 }
 
 bool Feeder::isQueueEmpty() {

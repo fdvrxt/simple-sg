@@ -13,19 +13,23 @@
 #include "utils/debug.hpp"
 #include "builder/builder.hpp"
 
+#ifdef DEBUG
+#include <chrono>
+#endif
+
 int main(int argc, char* argv[]) {
+#ifdef DEBUG
+    auto start_time = std::chrono::high_resolution_clock::now();
+#endif
+
     bool return_value = 0;
     std::filesystem::path config_path;
-
-    // vscode launch.json args do not seem to work for some reason. temporary workaround
-#ifdef DEBUG
-    argc = 2;
-    argv[1] = "C:\\Users\\big pc\\Desktop\\ssg-instance\\config.json";
-#endif
 
     try {
         if (argc > 1) {
             config_path = std::filesystem::path(argv[1]);
+            LOG_INFO("Using: " << config_path);
+
             if (!std::filesystem::exists(config_path)) {
                 throw std::runtime_error("Specified config file not found");
             }
@@ -39,13 +43,18 @@ int main(int argc, char* argv[]) {
         Config config(config_path);
         Feeder feeder(config);
         Builder builder(feeder);
-
+        
         builder.build();
         LOG_INFO("Building succeeded");
     } catch (const std::exception& e) {
         LOG_ERROR("Building failed: " << e.what());
         return_value = 1;   
     }
-    
+
+#ifdef DEBUG
+    auto end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> duration = end_time - start_time;
+    std::cout << "Execution time: " << duration.count() << " seconds\n";
+#endif
     return return_value;
 }

@@ -1,7 +1,7 @@
 #ifndef DATA_HPP_
 #define DATA_HPP_
 
-#include <json.hpp>
+#include <nlohmann/json.hpp>
 #include <inja.hpp>
 #include "../utils/debug.hpp"
 
@@ -91,6 +91,10 @@ public:
     
         return (... && (current->is_object() &&
                         (current = (current->find(keys) != current->end() ? &current->at(keys) : nullptr))));
+    }
+
+    void extend(Data d, const std::string& key) {
+        data[key] = d.getJson();
     }
     
     nlohmann::json getJson() const {

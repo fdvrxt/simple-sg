@@ -18,7 +18,6 @@ public:
     const Data& getPageData() const { return page_data; }
     bool operator<(const Page& other) const;
 
-    // default page values
     static constexpr const char* DEFAULT_PAGE_TITLE         = "Untitled Page";
     static constexpr const char* DEFAULT_PAGE_DESCRIPTION   = "Content on this page is not yet described.";
 };

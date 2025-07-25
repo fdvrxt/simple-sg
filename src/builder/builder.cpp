@@ -72,7 +72,7 @@ void Builder::worker_thread(std::vector<Page>& processed_pages) {
             // compute and save the url
             std::string output_url = utils::getOutputUrl(
                 config.getSiteDirectory() / "content",
-                config.get<std::string>(DataType::SITE, "site", "url"),
+                config.getData().get<std::string>("site", "url"),
                 page_path
             );
             page_data.set<std::string>(output_url, "url");
@@ -95,7 +95,7 @@ void Builder::worker_thread(std::vector<Page>& processed_pages) {
 }
 
 void Builder::build() {
-    unsigned int num_threads = 1; //std::thread::hardware_concurrency();
+    unsigned int num_threads = std::thread::hardware_concurrency();
     LOG_INFO("Building with: " << num_threads << " threads");
 
     std::vector<std::thread> threads;
@@ -118,10 +118,10 @@ void Builder::build() {
 
     for (auto& page : processed_pages) {
         page.validate(config);
-        config.add(DataType::SITE, page.getPageData(), "pages");
+        config.getData().add(page.getPageData(), "pages");
     }
 
-    nlohmann::json pages = config.getData(DataType::SITE).getJson()["pages"];
+    nlohmann::json pages = config.getData().getJson()["pages"];
 
     // at this point it's guaranteed that each page has a timestamp
     std::sort(
@@ -135,7 +135,7 @@ void Builder::build() {
         }
     );
 
-    config.set<nlohmann::json>(DataType::SITE, pages, "pages");
+    config.getData().set<nlohmann::json>(pages, "site", "pages");
 
     for (auto& page : processed_pages) {
         page.render(config);
@@ -143,7 +143,7 @@ void Builder::build() {
     
     // TODO move to config.cpp
     std::filesystem::path theme_dir         = config.getThemeDirectory();
-    std::filesystem::path assets_dir        = theme_dir / config.get<std::string>(DataType::THEME, "assets-directory");
+    std::filesystem::path assets_dir        = theme_dir / config.getData().get<std::string>("theme", "assets-directory");
     std::filesystem::path relative_path     = std::filesystem::relative(assets_dir, theme_dir);
     std::filesystem::path build_dir         = config.getSiteDirectory() / "output";
     std::filesystem::path target_assets_dir = build_dir / relative_path;

@@ -13,10 +13,9 @@ void Page::render(Config& config) {
     inja::Environment& env = config.getEnvironment();
     const inja::Template& temp = config.getTemplate(template_name);
 
-    nlohmann::json temp_data = config.getData(DataType::SITE).getJson();
+    nlohmann::json temp_data = config.getData().getJson();
     temp_data["page"] = page_data.getJson();
 
-    // render and output file
     std::string result = env.render(temp, temp_data);
     std::filesystem::path output_path = page_data.get<std::string>("path");
 
@@ -50,9 +49,9 @@ void Page::validate(Config& config) {
     }
 
     if (!page_data.hasKey("template")) {
-        if (config.getData(DataType::THEME).hasKey("default")) {
+        if (config.getData().hasKey("theme", "default")) {
             page_data.set<std::string>(
-                config.getData(DataType::THEME).get<std::string>("default"),
+                config.getData().get<std::string>("theme", "default"),
                 "template"
             );
         } else {
