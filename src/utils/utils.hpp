@@ -11,10 +11,6 @@
 #include "logger.hpp"
 #include "debug.hpp"
 
-// we don't really care about speed in debug mode
-#define LOG_DEBUG(message) { std::lock_guard<std::mutex> lock(utils::logMutex); std::cout << "DEBUG: " << message << std::endl; }
-
-// forgive me, father, for i have sinned
 #define LOG(level, msg) { std::ostringstream oss; oss << msg; Logger::log(level, oss); }
 #define LOG_INFO(msg)  LOG(LogLevel::INFO, msg)
 #define LOG_WARN(msg)  LOG(LogLevel::WARNING, msg)
@@ -28,7 +24,6 @@ namespace utils {
         MARKDOWN = 1 << 1
     };
 
-    // that's a hell of a function signature
     std::pair<std::optional<std::string>, std::optional<std::string>> extract(const std::string& str, int extraction_type);
     std::filesystem::path   getOutputPath(
         const std::filesystem::path& content_dir,

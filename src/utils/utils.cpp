@@ -23,7 +23,6 @@ std::pair<std::optional<std::string>, std::optional<std::string>> utils::extract
                 markdown = trim(str.substr(end + delimiter.length()));
             }
         } else {
-            // missing closing delimiter
             throw std::runtime_error("Missing closing delimiter in frontmatter");
         }
     }
@@ -98,7 +97,6 @@ std::string utils::getOutputUrl(
 
     return url_base + "/" + relative_path.string();
 }
-
 
 void utils::clear_directory(const std::filesystem::path& dir) {
     if (std::filesystem::exists(dir) && std::filesystem::is_directory(dir)) {
