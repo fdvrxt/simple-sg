@@ -15,11 +15,11 @@ Builder::Builder(Feeder& feeder) :
 Builder::~Builder() { }
 
 void Builder::build() {
-    unsigned int num_threads = 1; //std::thread::hardware_concurrency();
+    unsigned int num_threads = std::thread::hardware_concurrency();
     LOG_INFO("Building with: " << num_threads << " threads");
 
     std::vector<Page> processed_pages;
-    start_worker_threads(num_threads, processed_pages);
+    start_content_threads(num_threads, processed_pages);
 
     Config& config = feeder.getConfig();
     std::filesystem::path output_dir = config.getSiteDirectory() / "output";
@@ -27,21 +27,26 @@ void Builder::build() {
 
     collect_and_validate_pages(processed_pages, config);
     sort_and_store_pages(config);
-    render_pages(processed_pages, config);
+    start_render_threads(num_threads, processed_pages, config);
     copy_theme_assets(config);
 }
 
-void Builder::start_worker_threads(unsigned int num_threads, std::vector<Page>& processed_pages) {
+
+void Builder::start_content_threads(unsigned int num_threads, std::vector<Page>& processed_pages) {
     std::vector<std::thread> threads;
+    std::mutex processed_pages_mutex;
+
     for (unsigned int i = 0; i < num_threads; ++i) {
-        threads.emplace_back([this, &processed_pages] { worker_thread(processed_pages); });
+        threads.emplace_back([this, &processed_pages, &processed_pages_mutex] {
+            content_worker_thread(processed_pages, processed_pages_mutex);
+        });
     }
     for (auto& thread : threads) {
         if (thread.joinable()) thread.join();
     }
 }
 
-void Builder::worker_thread(std::vector<Page>& processed_pages) {
+void Builder::content_worker_thread(std::vector<Page>& processed_pages, std::mutex& processed_pages_mutex) {
     Config& config = feeder.getConfig();
     std::optional<std::pair<std::int32_t, std::filesystem::path>> page_path_opt = feeder.getNext();
 
@@ -69,13 +74,34 @@ void Builder::worker_thread(std::vector<Page>& processed_pages) {
             );
             page_data.set<std::string>(output_url, "url");
 
-            processed_pages.push_back(Page(page_data));
+            {
+                std::lock_guard<std::mutex> lock(processed_pages_mutex);
+                processed_pages.push_back(Page(page_data));
+            }
             LOG_INFO("Finished processing content (index: " << index << ")");
         } catch (const std::exception& e) {
             LOG_ERROR("Error processing content: "  << page_path);
             LOG_ERROR("Error message: "             << e.what());
         }
         page_path_opt = feeder.getNext();
+    }
+}
+
+void Builder::start_render_threads(unsigned int num_threads, std::vector<Page>& processed_pages, Config& config) {
+    std::vector<std::thread> threads;
+    std::atomic<size_t> page_index{0};
+    
+    for (unsigned int i = 0; i < num_threads; ++i) {
+        threads.emplace_back([&processed_pages, &config, &page_index] {
+            while (true) {
+                size_t idx = page_index.fetch_add(1);
+                if (idx >= processed_pages.size()) break;
+                processed_pages[idx].render(config);
+            }
+        });
+    }
+    for (auto& thread : threads) {
+        if (thread.joinable()) thread.join();
     }
 }
 
