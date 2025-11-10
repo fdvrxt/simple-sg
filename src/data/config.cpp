@@ -74,7 +74,6 @@ void Config::validate_site_config() {
 }
 
 void Config::validate_theme_config() {
-    // there might be reasons to build without templates?
     if (!data.hasKey("theme", "templates")) {
         throw std::runtime_error("No templates found in theme configuration");
     }

@@ -20,6 +20,8 @@
 int main(int argc, char* argv[]) {
 #ifdef DEBUG
     auto start_time = std::chrono::high_resolution_clock::now();
+    //argc = 2;
+    //argv[1] = const_cast<char*>("C:/Users/Larry/Desktop/ssg-instance/config.json");
 #endif
 
     bool return_value = 0;
@@ -56,5 +58,7 @@ int main(int argc, char* argv[]) {
     std::chrono::duration<double> duration = end_time - start_time;
     std::cout << "Execution time: " << duration.count() << " seconds\n";
 #endif
+    LOG_INFO("Press any key to exit...");
+    getchar();
     return return_value;
 }
