@@ -113,3 +113,12 @@ const inja::Template& Config::getTemplate(const std::string& template_name) {
 
     return template_map[template_name];
 }
+
+std::vector<nlohmann::json> Config::get_directives()
+{
+    if (data.hasKey("theme", "directives")) 
+    {
+        return data.get<std::vector<nlohmann::json>>("theme", "directives");
+    }
+    return std::vector<nlohmann::json>();
+}

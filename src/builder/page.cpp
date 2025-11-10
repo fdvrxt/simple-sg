@@ -1,14 +1,17 @@
+#include <algorithm>
+#include <cctype>
 #include <iomanip>
 #include "page.hpp"
 #include "../utils/utils.hpp"
-#include "../Builder/builder.hpp"
+#include "../builder/builder.hpp"
+#include "../directives/directive.hpp"
 
-Page::Page(const Data& data) 
-    : page_data(data) 
+Page::Page(const Data& data)
+    : page_data(data)
 {
 }
 
-void Page::render(Config& config) {
+void Page::render(Config& config, const std::string& live_reload_snippet) {
     std::string template_name = page_data.get<std::string>("template");
     inja::Environment& env = config.getEnvironment();
     const inja::Template& temp = config.getTemplate(template_name);
@@ -17,11 +20,31 @@ void Page::render(Config& config) {
     temp_data["page"] = page_data.getJson();
 
     std::string result = env.render(temp, temp_data);
+
+    if (!live_reload_snippet.empty()) {
+        std::string lowered = result;
+        std::transform(
+            lowered.begin(),
+            lowered.end(),
+            lowered.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); }
+        );
+        std::string body_tag = "</body>";
+        std::size_t pos = lowered.rfind(body_tag);
+
+        if (pos != std::string::npos) {
+            result.insert(pos, live_reload_snippet);
+        }
+        else {
+            result.append(live_reload_snippet);
+        }
+    }
     std::filesystem::path output_path = page_data.get<std::string>("path");
 
     if (utils::output_file(result, output_path)) {
         LOG_INFO("Succefully outputted file: " << output_path);
-    } else {
+    }
+    else {
         LOG_ERROR("Failed outputting file: " << output_path);
     }
 }

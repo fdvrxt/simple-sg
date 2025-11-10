@@ -33,6 +33,7 @@ public:
     const std::filesystem::path&    getSiteDirectory() const { return site_dir; }
     const std::filesystem::path&    getThemeDirectory() const { return theme_dir; }
     Data&                           getData() { return data; }
+    std::vector<nlohmann::json>     get_directives();
 
     // default config values
     static constexpr const char* DEFAULT_SITE_TITLE = "Site";

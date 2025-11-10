@@ -8,9 +8,12 @@
 
 #include "../utils/utils.hpp"
 #include "builder.hpp"
+#include "../directives/directive.hpp"
 
-Builder::Builder(Feeder& feeder) :
-    feeder(feeder) {}
+Builder::Builder(Feeder& feeder, const std::string& live_reload_snippet) :
+    feeder(feeder),
+    live_reload_snippet(live_reload_snippet) {
+}
 
 Builder::~Builder() { }
 
@@ -27,10 +30,22 @@ void Builder::build() {
 
     collect_and_validate_pages(processed_pages, config);
     sort_and_store_pages(config);
+    process_directives(config);
     start_render_threads(num_threads, processed_pages, config);
     copy_theme_assets(config);
+    copy_assets(config);
 }
 
+void Builder::process_directives(Config& config) {
+    std::vector<nlohmann::json> directives = config.get_directives();
+    
+    for (nlohmann::json directive : directives) {
+        auto directive_obj = getDirective(directive["name"]);
+        if (auto* d = directive_obj.get()) {
+            d->init(config, directive);
+        }
+    }
+}
 
 void Builder::start_content_threads(unsigned int num_threads, std::vector<Page>& processed_pages) {
     std::vector<std::thread> threads;
@@ -89,16 +104,17 @@ void Builder::content_worker_thread(std::vector<Page>& processed_pages, std::mut
 
 void Builder::start_render_threads(unsigned int num_threads, std::vector<Page>& processed_pages, Config& config) {
     std::vector<std::thread> threads;
-    std::atomic<size_t> page_index{0};
-    
+    std::atomic<size_t> page_index{ 0 };
+
     for (unsigned int i = 0; i < num_threads; ++i) {
-        threads.emplace_back([&processed_pages, &config, &page_index] {
+        std::string snippet_copy = live_reload_snippet;
+        threads.emplace_back([&processed_pages, &config, &page_index, snippet_copy] {
             while (true) {
                 size_t idx = page_index.fetch_add(1);
                 if (idx >= processed_pages.size()) break;
-                processed_pages[idx].render(config);
+                processed_pages[idx].render(config, snippet_copy);
             }
-        });
+            });
     }
     for (auto& thread : threads) {
         if (thread.joinable()) thread.join();
@@ -151,7 +167,7 @@ void Builder::sort_and_store_pages(Config& config) {
 
 void Builder::render_pages(std::vector<Page>& processed_pages, Config& config) {
     for (auto& page : processed_pages) {
-        page.render(config);
+        page.render(config, live_reload_snippet);
     }
 }
 
@@ -161,6 +177,19 @@ void Builder::copy_theme_assets(Config& config) {
     std::filesystem::path relative_path = std::filesystem::relative(assets_dir, theme_dir);
     std::filesystem::path build_dir = config.getSiteDirectory() / "output";
     std::filesystem::path target_assets_dir = build_dir / relative_path;
+
+    std::filesystem::copy(
+        assets_dir,
+        target_assets_dir,
+        std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing
+    );
+}
+
+void Builder::copy_assets(Config& config) {
+    std::filesystem::path assets_dir = config.getSiteDirectory() / "assets";
+    std::filesystem::path relative_path = std::filesystem::relative(assets_dir, config.getSiteDirectory());
+    std::filesystem::path build_dir = config.getSiteDirectory() / "output";
+    std::filesystem::path target_assets_dir = build_dir / relative_path / "assets";
 
     std::filesystem::copy(
         assets_dir,

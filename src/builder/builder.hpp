@@ -7,6 +7,7 @@
 #include <inja.hpp>
 #include <vector>
 #include <queue>
+#include <string>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
@@ -15,6 +16,7 @@
 class Builder {
 private:
     Feeder& feeder;
+    std::string live_reload_snippet;
 
     std::pair<std::string, std::string> read_and_extract(const std::filesystem::path& page_path);
     std::string generate_html(const std::string_view& markdown);
@@ -30,12 +32,14 @@ private:
 
     void collect_and_validate_pages(std::vector<Page>& processed_pages, Config& config);
     void sort_and_store_pages(Config& config);
+    void process_directives(Config& config);
     void render_pages(std::vector<Page>& processed_pages, Config& config);
     void copy_theme_assets(Config& config);
+    void copy_assets(Config& config);
 public:
     void build();
 
-    Builder(Feeder& feeder);
+    Builder(Feeder& feeder, const std::string& live_reload_snippet = "");
     ~Builder();
 };
 
