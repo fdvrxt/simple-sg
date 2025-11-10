@@ -6,15 +6,16 @@
 #include "directive.hpp"
 #include "../utils/debug.hpp"
 #include "../data/config.hpp"
+#include "../utils/utils.hpp"
 
 class Index : public Directive {
 private:
-	int count = 0;
+    int count = 0;
 
 public:
-	Index();
-	virtual void init(Config& config, const nlohmann::json directive);
-	virtual void render();
+    Index();
+    virtual void init(Config& config, const nlohmann::json directive);
+    virtual void render();
 };
 
 #endif
