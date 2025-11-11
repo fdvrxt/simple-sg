@@ -54,7 +54,8 @@ bool utils::output_file(const std::string& str, std::filesystem::path& file_path
 
     if (!directory.empty() && !std::filesystem::exists(directory)) {
         std::error_code ec;
-        if (!std::filesystem::create_directories(directory, ec)) {
+        std::filesystem::create_directories(directory, ec);
+        if (ec && !std::filesystem::exists(directory)) {
             return false;
         }
     }

@@ -16,7 +16,6 @@ class Index : public Directive {
 public:
     Index();
     virtual void init(Config& config, const nlohmann::json directive);
-    virtual void render();
 
     using AugmentRenderData = std::function<void(nlohmann::json&, std::size_t, std::size_t)>;
 

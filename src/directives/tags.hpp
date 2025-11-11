@@ -12,7 +12,6 @@ class Tags : public Directive {
 public:
     Tags() = default;
     virtual void init(Config& config, const nlohmann::json directive) override;
-    virtual void render() override;
 };
 
 #endif

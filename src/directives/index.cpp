@@ -4,10 +4,7 @@
 
 #include "index.hpp"
 
-Index::Index()
-{
-
-}
+Index::Index() { }
 
 void Index::init(Config& config, const nlohmann::json directive)
 {
@@ -39,11 +36,6 @@ void Index::init(Config& config, const nlohmann::json directive)
     std::filesystem::path output_dir = config.getSiteDirectory() / "output";
 
     render_paginated(config, temp, data, pages, count, output_dir);
-}
-
-void Index::render()
-{
-
 }
 
 void Index::render_paginated(
@@ -83,9 +75,11 @@ void Index::render_paginated(
         render_data["site"]["pages"] = subset;
 
         nlohmann::json index_info;
+        render_data["pages"] = subset;
         index_info["page_number"] = idx + 1;
         index_info["total_pages"] = total_pages;
         index_info["has_previous"] = idx > 0;
+        index_info["count"] = pages.size();
         index_info["has_next"] = idx + 1 < total_pages;
         if (idx > 0) {
             index_info["previous_page"] = idx;
@@ -101,6 +95,7 @@ void Index::render_paginated(
             augment(render_data, idx, total_pages);
         }
 
+        std::cout << render_data << std::endl;
         std::string rendered = env.render(temp, render_data);
 
         std::filesystem::path root_index = output_dir / "index.html";

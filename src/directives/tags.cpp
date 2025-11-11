@@ -77,9 +77,11 @@ void Tags::init(Config& config, const nlohmann::json directive)
                 tag_entry["name"] = tag_name;
                 tag_entry["slug"] = slug;
                 tag_entry["pages"] = nlohmann::json::array();
+                tag_entry["count"] = 0;
             }
 
             tag_entry["pages"].push_back(page);
+            tag_entry["count"] = tag_entry["count"] + 1;
         }
     }
 
@@ -141,9 +143,4 @@ void Tags::init(Config& config, const nlohmann::json directive)
             }
         );
     }
-}
-
-void Tags::render()
-{
-
 }
