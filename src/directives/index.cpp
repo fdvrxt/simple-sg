@@ -17,7 +17,7 @@ void Index::init(Config& config, const nlohmann::json directive)
         throw std::runtime_error("Index directive missing required 'count' value");
     }
 
-    count = directive["count"].get<int>();
+    int count = directive["count"].get<int>();
 
     if (count <= 0) {
         throw std::runtime_error("Index directive requires a positive 'count' value");
@@ -28,18 +28,46 @@ void Index::init(Config& config, const nlohmann::json directive)
         return;
     }
 
-    const inja::Template& temp = config.getTemplate(directive["name"]);
-
     const nlohmann::json& pages = data["site"]["pages"];
     if (!pages.is_array() || pages.empty()) {
         LOG_WARN("Index directive found no pages to render");
         return;
     }
 
+    const inja::Template& temp = config.getTemplate(directive["name"]);
+
+    std::filesystem::path output_dir = config.getSiteDirectory() / "output";
+
+    render_paginated(config, temp, data, pages, count, output_dir);
+}
+
+void Index::render()
+{
+
+}
+
+void Index::render_paginated(
+    Config& config,
+    const inja::Template& temp,
+    const nlohmann::json& base_data,
+    const nlohmann::json& pages,
+    int count,
+    const std::filesystem::path& output_dir,
+    const AugmentRenderData& augment
+)
+{
+    if (!pages.is_array() || pages.empty()) {
+        LOG_WARN("Index pagination received no pages to render");
+        return;
+    }
+
+    if (count <= 0) {
+        throw std::runtime_error("Index pagination requires a positive 'count' value");
+    }
+
     std::size_t total_pages = (pages.size() + static_cast<std::size_t>(count) - 1) / static_cast<std::size_t>(count);
 
     inja::Environment& env = config.getEnvironment();
-    std::filesystem::path output_dir = config.getSiteDirectory() / "output";
 
     for (std::size_t idx = 0; idx < total_pages; ++idx) {
         std::size_t start = idx * static_cast<std::size_t>(count);
@@ -50,7 +78,7 @@ void Index::init(Config& config, const nlohmann::json directive)
             subset.push_back(pages[i]);
         }
 
-        nlohmann::json render_data = data;
+        nlohmann::json render_data = base_data;
         render_data["pages"] = subset;
         render_data["site"]["pages"] = subset;
 
@@ -68,6 +96,10 @@ void Index::init(Config& config, const nlohmann::json directive)
 
         render_data["index"] = index_info;
         render_data["page_number"] = idx + 1;
+
+        if (augment) {
+            augment(render_data, idx, total_pages);
+        }
 
         std::string rendered = env.render(temp, render_data);
 
@@ -91,10 +123,4 @@ void Index::init(Config& config, const nlohmann::json directive)
             utils::output_file(rendered, out);
         }
     }
-
-}
-
-void Index::render()
-{
-
 }

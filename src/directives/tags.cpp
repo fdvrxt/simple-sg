@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "tags.hpp"
+#include "index.hpp"
 
 namespace {
     std::string slugify(const std::string& value)
@@ -103,23 +104,42 @@ void Tags::init(Config& config, const nlohmann::json directive)
     );
 
     config.getData().set<nlohmann::json>(tag_collection, "site", "tags");
+    data["site"]["tags"] = tag_collection;
 
     const inja::Template& temp = config.getTemplate(directive["name"]);
-    inja::Environment& env = config.getEnvironment();
-    std::filesystem::path output_dir = config.getSiteDirectory() / "output" / "tags";
+    std::filesystem::path tags_output_dir = config.getSiteDirectory() / "output" / "tags";
+
+    int directive_count = -1;
+    if (directive.contains("count")) {
+        directive_count = directive["count"].get<int>();
+        if (directive_count <= 0) {
+            throw std::runtime_error("Tags directive requires a positive 'count' value when provided");
+        }
+    }
 
     for (const auto& tag_entry : tag_collection) {
-        nlohmann::json render_data = data;
-        render_data["pages"] = tag_entry["pages"];
-        render_data["site"]["pages"] = tag_entry["pages"];
-        render_data["tag"] = tag_entry;
-        render_data["tags"] = tag_collection;
+        const nlohmann::json& tag_pages = tag_entry["pages"];
+        if (!tag_pages.is_array() || tag_pages.empty()) {
+            continue;
+        }
 
-        std::string rendered = env.render(temp, render_data);
+        int count = directive_count > 0 ? directive_count : static_cast<int>(tag_pages.size());
 
-        std::filesystem::path tag_path = output_dir / tag_entry["slug"].get<std::string>() / "index.html";
-        std::filesystem::path out = tag_path;
-        utils::output_file(rendered, out);
+        std::filesystem::path tag_output_dir = tags_output_dir / tag_entry["slug"].get<std::string>();
+
+        Index::render_paginated(
+            config,
+            temp,
+            data,
+            tag_pages,
+            count,
+            tag_output_dir,
+            [&tag_entry, &tag_collection](nlohmann::json& render_data, std::size_t, std::size_t) {
+                render_data["tag"] = tag_entry;
+                render_data["tag"]["pages"] = render_data["pages"];
+                render_data["tags"] = tag_collection;
+            }
+        );
     }
 }
 
