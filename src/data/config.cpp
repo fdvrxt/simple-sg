@@ -71,6 +71,10 @@ void Config::validate_site_config() {
     if (!data.hasKey("site", "theme")) {
         throw std::runtime_error("No theme specified in site config.json");
     }
+
+    if (!data.hasKey("site", "description")) {
+        data.set<std::string>(DEFAULT_SITE_DESCRIPTION, "site", "description");
+    }
 }
 
 void Config::validate_theme_config() {

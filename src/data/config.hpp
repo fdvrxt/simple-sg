@@ -35,7 +35,7 @@ public:
     Data&                           getData() { return data; }
     std::vector<nlohmann::json>     get_directives();
 
-    // default config values
     static constexpr const char* DEFAULT_SITE_TITLE = "Site";
+    static constexpr const char* DEFAULT_SITE_DESCRIPTION = "Very cool website.";
 };
 #endif

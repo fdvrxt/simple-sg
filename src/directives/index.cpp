@@ -104,7 +104,6 @@ void Index::render_paginated(
             augment(render_data, idx, total_pages);
         }
 
-        std::cout << render_data << std::endl;
         std::string rendered = env.render(temp, render_data);
 
         std::filesystem::path root_index = output_dir / "index.html";
