@@ -36,13 +36,48 @@ void Builder::build() {
     copy_assets(config);
 }
 
+
 void Builder::process_directives(Config& config) {
+    Data& data = config.getData();
+    data.set<bool>(false, "directives", "index");
+    data.set<std::string>("off", "directives", "tags");
+
     std::vector<nlohmann::json> directives = config.get_directives();
-    
-    for (nlohmann::json directive : directives) {
-        auto directive_obj = getDirective(directive["name"]);
+
+    for (const nlohmann::json& directive : directives) {
+        if (!directive.contains("name") || !directive["name"].is_string()) {
+            LOG_WARN("Directive missing 'name' field or it is not a string.");
+            continue;
+        }
+
+        const std::string directive_name = directive["name"].get<std::string>();
+
+        auto directive_obj = getDirective(directive_name);
         if (auto* d = directive_obj.get()) {
-            d->init(config, directive);
+            bool reset_index = false;
+            bool reset_tags = false;
+
+            if (directive_name == "index") {
+                data.set<bool>(true, "directives", "index");
+                reset_index = true;
+            }
+            else if (directive_name == "tags") {
+                data.set<std::string>("on", "directives", "tags");
+                reset_tags = true;
+            }
+
+            try {
+                d->init(config, directive);
+            }
+            catch (...) {
+                if (reset_index) {
+                    data.set<bool>(false, "directives", "index");
+                }
+                if (reset_tags) {
+                    data.set<std::string>("off", "directives", "tags");
+                }
+                throw;
+            }
         }
     }
 }

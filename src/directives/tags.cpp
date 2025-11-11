@@ -108,6 +108,13 @@ void Tags::init(Config& config, const nlohmann::json directive)
     config.getData().set<nlohmann::json>(tag_collection, "site", "tags");
     data["site"]["tags"] = tag_collection;
 
+
+    if (!directive.contains("tags_index") || !directive["tags_index"].is_string()) {
+        throw std::runtime_error("Tags directive missing required 'tags_index' template key");
+    }
+
+    const std::string tags_index_template_name = directive["tags_index"].get<std::string>();
+    const inja::Template& tags_index_template = config.getTemplate(tags_index_template_name);
     const inja::Template& temp = config.getTemplate(directive["name"]);
     std::filesystem::path tags_output_dir = config.getSiteDirectory() / "output" / "tags";
 
@@ -117,6 +124,18 @@ void Tags::init(Config& config, const nlohmann::json directive)
         if (directive_count <= 0) {
             throw std::runtime_error("Tags directive requires a positive 'count' value when provided");
         }
+    }
+
+    {
+        nlohmann::json render_data = data;
+        render_data["tags"] = tag_collection;
+        render_data["site"]["tags"] = tag_collection;
+
+        inja::Environment& env = config.getEnvironment();
+        std::string rendered = env.render(tags_index_template, render_data);
+
+        std::filesystem::path tags_index_path = tags_output_dir / "index.html";
+        utils::output_file(rendered, tags_index_path);
     }
 
     for (const auto& tag_entry : tag_collection) {
