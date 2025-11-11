@@ -20,7 +20,7 @@ private:
 
     std::pair<std::string, std::string> read_and_extract(const std::filesystem::path& page_path);
     std::string generate_html(const std::string_view& markdown);
-    void render();
+    std::size_t count_words(const std::string_view& text);
 
     void content_worker_thread(std::vector<Page>& processed_pages, std::mutex& processed_pages_mutex);
     //void content_worker_thread(std::vector<Page>& processed_pages);

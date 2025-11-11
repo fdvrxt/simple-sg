@@ -31,11 +31,20 @@ void Index::init(Config& config, const nlohmann::json directive)
         return;
     }
 
+    // make a filtered copy
+    nlohmann::json pages_filtered = nlohmann::json::array();
+    for (const auto& page : pages) {
+        // treat missing/non-bool as false
+        if (page.is_object() && page.value("indexable", false)) {
+            pages_filtered.push_back(page);
+        }
+    }
+
     const inja::Template& temp = config.getTemplate(directive["name"]);
 
     std::filesystem::path output_dir = config.getSiteDirectory() / "output";
 
-    render_paginated(config, temp, data, pages, count, output_dir);
+    render_paginated(config, temp, data, pages_filtered, count, output_dir);
 }
 
 void Index::render_paginated(

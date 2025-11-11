@@ -75,6 +75,10 @@ void Page::validate(Config& config) {
         page_data.set<bool>(true, "indexable");
     }
 
+    if (!page_data.hasKey("show_description")) {
+        page_data.set<bool>(false, "show_description");
+    }
+
     if (!page_data.hasKey("template")) {
         if (config.getData().hasKey("theme", "default")) {
             page_data.set<std::string>(

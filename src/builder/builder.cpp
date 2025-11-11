@@ -5,10 +5,45 @@
 #include <vector>
 #include <optional>
 #include <string>
+#include <cctype>
+#include <set>
+#include <unordered_set>
 
 #include "../utils/utils.hpp"
 #include "builder.hpp"
 #include "../directives/directive.hpp"
+
+namespace {
+    std::string slugify(const std::string& value)
+    {
+        std::string slug;
+        slug.reserve(value.size());
+
+        bool last_was_hyphen = false;
+        for (unsigned char c : value) {
+            if (std::isalnum(c)) {
+                slug.push_back(static_cast<char>(std::tolower(c)));
+                last_was_hyphen = false;
+            }
+            else if (std::isspace(c) || c == '-' || c == '_' || c == '/') {
+                if (!last_was_hyphen && !slug.empty()) {
+                    slug.push_back('-');
+                    last_was_hyphen = true;
+                }
+            }
+        }
+
+        while (!slug.empty() && slug.back() == '-') {
+            slug.pop_back();
+        }
+
+        if (slug.empty()) {
+            slug = "tag";
+        }
+
+        return slug;
+    }
+}
 
 Builder::Builder(Feeder& feeder, const std::string& live_reload_snippet) :
     feeder(feeder),
@@ -107,8 +142,10 @@ void Builder::content_worker_thread(std::vector<Page>& processed_pages, std::mut
         try {
             auto [markdown, frontmatter] = read_and_extract(page_path);
             Data page_data((std::string(frontmatter)));
+            std::size_t word_count = count_words(markdown);
             std::string html = generate_html(markdown);
             page_data.set<std::string>(html, "content");
+            page_data.set<std::size_t>(word_count, "word_count");
 
             std::string output_path = utils::getOutputPath(
                 config.getSiteDirectory() / "content",
@@ -183,10 +220,93 @@ std::string Builder::generate_html(const std::string_view& markdown) {
 }
 
 void Builder::collect_and_validate_pages(std::vector<Page>& processed_pages, Config& config) {
+    std::unordered_map<std::string, nlohmann::json> all_tags;
+
     for (auto& page : processed_pages) {
         page.validate(config);
+
+        Data& page_data = page.getPageData();
+        std::vector<std::string> normalized_tags;
+        std::unordered_set<std::string> seen_tags;
+
+        if (page_data.hasKey("tags")) {
+            nlohmann::json raw_tags = page_data.get<nlohmann::json>("tags");
+
+            if (raw_tags.is_array()) {
+                normalized_tags.reserve(raw_tags.size());
+                for (const auto& tag_value : raw_tags) {
+                    if (!tag_value.is_string()) {
+                        LOG_WARN("Ignoring non-string tag value in page frontmatter tags");
+                        continue;
+                    }
+
+                    std::string tag = tag_value.get<std::string>();
+                    if (tag.empty()) {
+                        continue;
+                    }
+
+                    if (seen_tags.insert(tag).second) {
+                        std::string slug = slugify(tag);
+                        all_tags.try_emplace(slug, nlohmann::json::object());
+                        nlohmann::json& tag_entry = all_tags[slug];
+                        if (!tag_entry.contains("name")) {
+                            tag_entry["name"] = tag;
+                            tag_entry["slug"] = slug;
+                            tag_entry["count"] = 0;
+                        }
+                        tag_entry["count"] = tag_entry["count"].get<std::size_t>() + 1;
+                        normalized_tags.push_back(tag);
+                    }
+                }
+            }
+            else if (raw_tags.is_string()) {
+                std::string tag = raw_tags.get<std::string>();
+                if (!tag.empty() && seen_tags.insert(tag).second) {
+                    std::string slug = slugify(tag);
+                    all_tags.try_emplace(slug, nlohmann::json::object());
+                    nlohmann::json& tag_entry = all_tags[slug];
+                    if (!tag_entry.contains("name")) {
+                        tag_entry["name"] = tag;
+                        tag_entry["slug"] = slug;
+                        tag_entry["count"] = 0;
+                    }
+                    tag_entry["count"] = tag_entry["count"].get<std::size_t>() + 1;
+                    normalized_tags.push_back(tag);
+                }
+            }
+            else {
+                LOG_WARN("Unsupported tags frontmatter value detected; expected an array or string");
+            }
+        }
+
+        if (normalized_tags.empty()) {
+            page_data.set<nlohmann::json>(nlohmann::json::array(), "tags");
+        }
+        else {
+            page_data.set<std::vector<std::string>>(normalized_tags, "tags");
+        }
+    }
+
+    std::vector<nlohmann::json> sorted_tags;
+    sorted_tags.reserve(all_tags.size());
+    for (auto& [_, tag_entry] : all_tags) {
+        sorted_tags.push_back(tag_entry);
+    }
+
+    std::sort(
+        sorted_tags.begin(),
+        sorted_tags.end(),
+        [](const nlohmann::json& a, const nlohmann::json& b) {
+            return a["name"].get<std::string>() < b["name"].get<std::string>();
+        }
+    );
+
+    for (auto& page : processed_pages) {
+        page.getPageData().set<nlohmann::json>(sorted_tags, "all_tags");
         config.getData().add(page.getPageData(), "pages");
     }
+
+    config.getData().set<nlohmann::json>(sorted_tags, "site", "all_tags");
 }
 
 void Builder::sort_and_store_pages(Config& config) {
@@ -231,4 +351,24 @@ void Builder::copy_assets(Config& config) {
         target_assets_dir,
         std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing
     );
+}
+
+std::size_t Builder::count_words(const std::string_view& text) {
+    bool in_word = false;
+    std::size_t count = 0;
+
+    for (char ch : text) {
+        unsigned char uch = static_cast<unsigned char>(ch);
+        if (std::isalnum(uch)) {
+            if (!in_word) {
+                in_word = true;
+                ++count;
+            }
+        }
+        else {
+            in_word = false;
+        }
+    }
+
+    return count;
 }
